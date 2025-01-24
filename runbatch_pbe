@@ -1,0 +1,84 @@
+#!/bin/bash -l
+### running on 2 nodes with 20 cores per node = 2*20 = 40 mpi tasks
+#SBATCH --job-name=fe-ii-1
+##SBATCH --output=test-pw.o%j
+#SBATCH --partition=work
+##SBATCH --partition=devel
+#SBATCH --nodes=8
+#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-node=20
+#SBATCH --time=24:00:00
+#SBATCH --export=NONE
+##SBATCH --get-user-env
+##SBATCH --exclude=m[0108-0109,0147]
+##SBATCH -w, --nodelist=m[0101-0104]
+echo "Starting: $(date)"
+unset SLURM_EXPORT_ENV
+
+module purge
+module load intel64/19.0up05
+
+export CPMD="/bin/cpmd.x"
+cd $SLURM_SUBMIT_DIR 
+
+export PP_LIBRARY_PATH="/PP/"
+
+cd $SLURM_SUBMIT_DIR
+
+input2=job_II.in
+input3=job_III.in
+output=OUT
+
+: '
+Directory Struture
+
+ET_0001/
+├── Fe_II
+│   ├── GEOMETRY
+│   ├── GEOMETRY.xyz
+│   ├── job_II.in
+│   ├── LATEST
+│   └── OUT
+└── Fe_III
+    ├── GEOMETRY
+    ├── GEOMETRY.xyz
+    ├── job_III.in
+    ├── LATEST
+    └── OUT
+ET_0002/
+├── Fe_II
+│   ├── GEOMETRY
+│   ├── GEOMETRY.xyz
+│   ├── job_II.in
+│   ├── LATEST
+│   └── OUT
+└── Fe_III
+    ├── GEOMETRY
+    ├── GEOMETRY.xyz
+    ├── job_III.in
+    ├── LATEST
+    └── OUT
+'
+
+
+   for i in `seq 1 100`
+   do
+     x=$i
+     echo $x | awk '{ printf "%.4d\n", $1 }'
+     x=$(echo $x | awk '{ printf "%.4d\n", $1 }')
+
+     cd ET_${x}/Fe_II
+     cp ../../RESTART_II RESTART
+     mpirun   $CPMD ${input2} $PP_LIBRARY_PATH >> ${output}  
+     rm RESTART*
+
+     cd ../Fe_III
+     cp ../../RESTART_III RESTART
+     mpirun   $CPMD ${input3} $PP_LIBRARY_PATH >> ${output}  
+     rm RESTART*
+
+     cd ../../
+
+   done
+
+

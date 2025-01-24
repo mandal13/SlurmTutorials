@@ -1,0 +1,77 @@
+#!/bin/bash -l
+### running on 2 nodes with 20 cores per node = 2*20 = 40 mpi tasks
+#SBATCH --job-name=test-1
+##SBATCH --output=test-pw.o%j
+#SBATCH --partition=work
+##SBATCH --partition=devel
+#SBATCH --nodes=16
+#SBATCH --cpus-per-task=1
+#SBATCH --ntasks-per-node=20
+#SBATCH --time=20:10:00
+#SBATCH --export=NONE
+##SBATCH --get-user-env
+##SBATCH --exclude=m[0108-0109,0147]
+##SBATCH -w, --nodelist=m[0101-0104]
+echo "Starting: $(date)"
+unset SLURM_EXPORT_ENV
+
+
+
+module purge
+module load intel64/19.0up05
+
+
+set -vx
+
+export CPMD="/bin/cpmd.x"
+export PP_LIBRARY_PATH="/PP/"
+
+input=cpmd_local.inp
+output=OUT
+cd $SLURM_SUBMIT_DIR
+
+echo $TMPDIR
+
+export RSYNC_FLAG="-a --no-r --exclude=runbatch.*"
+
+workdir="${TMPDIR}/${SLURM_JOB_ID}"
+mkdir -p ${workdir}
+rsync ${RSYNC_FLAG} ${SLURM_SUBMIT_DIR}/* ${workdir}
+cd ${workdir}
+
+
+  (  
+    for i in `seq 1 24`
+    do
+       sleep 60m
+       rsync ${RSYNC_FLAG} ${workdir}/* ${SLURM_SUBMIT_DIR}
+    done 
+  ) &
+
+
+#  SLEEPTIME=$(grep time $0 | head -1 | sed 's/.*time=//g'| \
+#              awk -F: '{print -600+3600*$1+$2*60+$3}')
+#  echo "auto stop in ${SLEEPTIME} seconds"
+#  (sleep ${SLEEPTIME} ; touch ${workdir}/EXIT ; echo -n "touched EXIT at "; date) &
+#
+  echo -n "Starting run at: "
+  date
+
+#  export MFLAG="--map-by slot:PE=${OMP_NUM_THREADS} --report-bindings --bind-to core"
+
+  #${PAR_RUN} ${CPMD} ${input} ${PP_LIBRARY_PATH} > ${output}
+     mpirun   $CPMD ${input} $PP_LIBRARY_PATH > ${output} 
+
+  echo -n "Stopping run at: "
+  date
+#
+# move results and tidy up:
+#
+  echo
+    rsync ${RSYNC_FLAG} ${workdir}/* ${SLURM_SUBMIT_DIR}
+    cd ${SLURM_SUBMIT_DIR}
+    rm -rf ${workdir}
+#
+
+
+
